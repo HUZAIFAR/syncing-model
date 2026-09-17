@@ -1,0 +1,5 @@
+#!/bin/bash
+# Launcher so sync.py can be run from any directory.
+#   syncmarkers "path/to/folder" [--audacity] [--force]
+exec "$HOME/.venvs/syncmarkers/bin/python" \
+     "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/sync.py" "$@"

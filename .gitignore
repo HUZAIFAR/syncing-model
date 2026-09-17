@@ -1,0 +1,43 @@
+# ---- Recitation content: never publish -------------------------------------
+# Audio, source texts and translations belong to their owners and are not
+# redistributed here. Keep all of it out of the repository.
+inputs/
+example_for_claude/
+testing/
+*.mp3
+*.wav
+*.m4a
+*.m4b
+*.aac
+*.flac
+*.ogg
+*.opus
+*.aif
+*.aiff
+*.wma
+*.mp4
+*.pdf
+
+# ---- Generated / derived from that content ---------------------------------
+.drive_stage/
+alignment_cache.npz
+eval_results.json
+*.npz
+ar-sync*.txt
+* labels.txt
+
+# ---- Secrets ---------------------------------------------------------------
+.env
+.env.*
+*.key
+*.pem
+*credentials*
+*secret*
+*token*
+
+# ---- Local noise -----------------------------------------------------------
+__pycache__/
+*.pyc
+.DS_Store
+.venv/
+venv/

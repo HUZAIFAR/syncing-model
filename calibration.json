@@ -1,0 +1,9 @@
+{
+ "strategy": "pause_mid",
+ "offset": 0.0,
+ "n": 319,
+ "median_err_s": 0.046,
+ "p90_err_s": 0.156,
+ "within_250ms_pct": 96.9,
+ "note": "Marker sits at the exact centre of the real silence between lines, measured from audio loudness. offset 0.0 is deliberate: fitting an offset moved it only +0.017s, so the true midpoint needs no correction."
+}
