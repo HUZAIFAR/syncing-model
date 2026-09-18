@@ -41,3 +41,4 @@ __pycache__/
 .DS_Store
 .venv/
 venv/
+.secrets-patterns.local
