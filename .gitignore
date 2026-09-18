@@ -34,6 +34,8 @@ ar-sync*.txt
 *credentials*
 *secret*
 *token*
+# ...but the scanner itself must be tracked
+!scripts/check-secrets.sh
 
 # ---- Local noise -----------------------------------------------------------
 __pycache__/
