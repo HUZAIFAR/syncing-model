@@ -115,11 +115,23 @@ def localise(src):
     return dst
 
 
-def build():
+def build(only=None):
+    """Align everything ready, or -- when `only` is given -- just those folders.
+
+    Pass folder names to restrict the run. Existing recitations are never
+    reprocessed anyway, but an explicit list makes "sync exactly these" safe.
+    """
     if os.path.exists(STAGE):
         shutil.rmtree(STAGE)
     os.makedirs(STAGE)
     todo, skipped = survey()
+    if only:
+        wanted = {o.lower() for o in only}
+        missed = wanted - {r["folder"].lower() for r in todo}
+        todo = [r for r in todo if r["folder"].lower() in wanted]
+        for m in sorted(missed):
+            why = next((w for f, w in skipped if f.lower() == m), "not found / not ready")
+            print(f"  !! requested but not processed: {m}  ({why})")
     offset, strategy, _ = SY.load_calibration(None, None)
     import torch
     device = "mps" if torch.backends.mps.is_available() else "cpu"
@@ -156,6 +168,19 @@ def build():
                 fails.append("markers not strictly increasing")
             if abs(marks[-1] - dur) > 0.05:
                 fails.append("last marker is not the end of the audio")
+            # A line the reciter never says still has to be placed somewhere,
+            # so the aligner collapses it to near-zero duration. Catch that:
+            # an implied speaking rate far above the file's own median means
+            # the text contains a line that is not in the audio.
+            span = np.diff(np.concatenate([[0.0], marks]))
+            wt = np.array([max(1, S.weight(l)) for l in lines], float)
+            rate = wt / np.maximum(span, 0.01)
+            med_rate = float(np.median(rate))
+            ghosts = [i + 1 for i, rt in enumerate(rate)
+                      if rt > 4 * med_rate and span[i] < 1.0]
+            if ghosts:
+                fails.append("line(s) not present in the audio (collapsed to ~0s): "
+                             + ", ".join(str(g) for g in ghosts))
             if any(p["mismatch"] for p in probs):
                 bad = [p for p in probs if p["mismatch"]]
                 fails.append("text/audio mismatch: " + "; ".join(
@@ -246,7 +271,7 @@ if __name__ == "__main__":
                  'GoogleDrive-you@example.com/My Drive/Recitations"')
     cmd = sys.argv[1] if len(sys.argv) > 1 else "build"
     if cmd == "build":
-        build()
+        build(only=sys.argv[2:] or None)
     elif cmd == "dry":
         upload(dry=True)
     elif cmd == "upload":
