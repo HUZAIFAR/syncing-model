@@ -76,6 +76,42 @@ AUDIO_EXT = (".mp3", ".wav", ".m4a", ".m4b", ".aac", ".flac", ".ogg", ".opus",
              ".aif", ".aiff", ".wma", ".mp4")
 
 
+# Letters used in Lisan ud-Dawat / Urdu written in Arabic script but absent from
+# classical Arabic. A Lisan translation scores ~8-13% on these and carries
+# almost no tashkeel; the vocalised Arabic source scores <=0.1% with >=40%.
+URDU_CH = re.compile(r"[ےۓںٹڈڑژھہۂۃۀگچپ]")
+TASHKEEL_CH = re.compile(r"[ً-ْٰ]")
+# Filenames that mark a companion file (translation, transliteration), never a
+# recitation source -- even when written in Arabic script, like "dz_translation".
+COMPANION_NAME = re.compile(r"(^|[\W_])(dz|translation|translit|lisan|urdu|guj)", re.I)
+
+
+def script_profile(path):
+    """(share of Urdu/Lisan-only letters, share of tashkeel) among Arabic chars."""
+    try:
+        t = open(path, encoding="utf-8", errors="ignore").read()
+    except OSError:
+        return 0.0, 0.0
+    n = max(1, len(ARABIC_CH.findall(t)))
+    return len(URDU_CH.findall(t)) / n, len(TASHKEEL_CH.findall(t)) / n
+
+
+def is_lisan(path):
+    urdu, tash = script_profile(path)
+    return urdu > 0.02 and tash < 0.15
+
+
+def is_companion_name(name):
+    return bool(COMPANION_NAME.search(os.path.splitext(os.path.basename(name))[0]))
+
+
+def source_rank(path):
+    """Sort key for choosing the recited text: real Arabic before Lisan, an
+    'ar'-named file before others, then most Arabic-script."""
+    base = os.path.basename(path).lower()
+    return (not is_lisan(path), base.startswith("ar"), arabic_ratio(path))
+
+
 def arabic_ratio(path):
     """Fraction of non-space characters that are Arabic script."""
     try:
@@ -128,11 +164,12 @@ def find_item(folder):
                    if p.lower().endswith(AUDIO_EXT))
 
     sync = next((t for t in txts if is_sync_file(t)), None)
-    # Exclude our own outputs, then take the most Arabic remaining file.
-    candidates = [(arabic_ratio(t), t) for t in txts
-                  if t != sync and not is_label_file(t)]
-    candidates = [(r, t) for r, t in candidates if r > 0.5]
-    ar = max(candidates)[1] if candidates else None
+    # Exclude our own outputs and named companions (a Lisan "dz_translation" is
+    # Arabic script but is not what is recited), then prefer the real Arabic.
+    candidates = [t for t in txts
+                  if t != sync and not is_label_file(t)
+                  and not is_companion_name(t) and arabic_ratio(t) > 0.5]
+    ar = max(candidates, key=source_rank) if candidates else None
 
     if not audio or not ar:
         return None

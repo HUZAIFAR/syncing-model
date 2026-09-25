@@ -63,7 +63,13 @@ def survey():
         arabic = [f for f in txts
                   if f not in syncs
                   and not S.is_label_file(os.path.join(p, f))
+                  and not S.is_companion_name(f)
                   and S.arabic_ratio(os.path.join(p, f)) > 0.5]
+        # One audio file means one recitation. If several Arabic-script texts
+        # remain, keep only the best source rather than treating the folder as
+        # a bundle -- otherwise a Lisan translation gets aligned to the audio.
+        if len(audio) == 1 and len(arabic) > 1:
+            arabic = [max(arabic, key=lambda f: S.source_rank(os.path.join(p, f)))]
 
         if syncs:
             skipped.append((folder, "already synced on Drive"))
