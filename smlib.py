@@ -228,6 +228,26 @@ def duration(path):
     return float(out)
 
 
+def exact_duration(path):
+    """Frame-exact length of an MP3 in seconds, or None for other formats.
+
+    `ffprobe`'s format duration is only an estimate from average bitrate when a
+    VBR MP3 has no Xing/Info/VBRI header, and can be off by several percent.
+    Counting frames is exact. Layer III frames carry 1152 samples for MPEG-1
+    (32/44.1/48 kHz) but 576 for MPEG-2/2.5 (lower rates).
+    """
+    out = subprocess.run(
+        ["ffprobe", "-v", "error", "-count_packets", "-select_streams", "a:0",
+         "-show_entries", "stream=codec_name,sample_rate,nb_read_packets",
+         "-of", "csv=p=0", path],
+        capture_output=True, text=True,
+    ).stdout.strip().split(",")
+    if len(out) < 3 or out[0] != "mp3":
+        return None
+    sr, n = int(out[1]), int(out[2])
+    return n * (1152 if sr >= 32000 else 576) / sr
+
+
 def decode_16k(path):
     """Decode to 16 kHz mono float32 numpy array via ffmpeg."""
     import numpy as np

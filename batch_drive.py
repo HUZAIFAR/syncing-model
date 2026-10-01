@@ -37,6 +37,8 @@ CACHE = os.path.join(os.environ.get("TMPDIR", "/tmp"), "drive_audio_cache")
 DRIVE = os.environ.get("SYNC_DRIVE_ROOT", "")
 STAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".drive_stage")
 MANIFEST = os.path.join(STAGE, "manifest.json")
+# Median CTC confidence below which a whole alignment is held for review.
+CONF_FLOOR = 0.15
 
 
 def keyname(s):
@@ -156,12 +158,24 @@ def build(only=None):
             lines = S.read_lines(artxt)
             if not lines:
                 raise ValueError("Arabic text file is empty")
-            dur = S.duration(audio)
-            # cross-check the container header against the real decoded length
-            decoded = len(S.decode_16k(audio)) / 16000.0
-            if abs(decoded - dur) > 0.05:
-                raise IOError(f"audio truncated: header says {dur:.2f}s, "
-                              f"decoded {decoded:.2f}s")
+            # The decoded length is the true duration. A partial read from the
+            # Drive mount is already ruled out by localise()'s byte check; this
+            # catches a decoder that stops early. Compare against a frame-exact
+            # count, NOT the container header: for a VBR MP3 with no seek header
+            # the header is a bitrate estimate and can be off by several percent.
+            dur = len(S.decode_16k(audio)) / 16000.0
+            ref = S.exact_duration(audio)
+            header = S.duration(audio)
+            if ref is None:
+                ref = header
+            # Frame counts include the encoder's start delay and end padding,
+            # which gapless decoders trim -- so decoded may run up to a few
+            # frames short of the count. Anything beyond that is a real loss.
+            if dur > ref + 0.05 or dur < ref - 0.15:
+                raise IOError(f"audio decoded to {dur:.2f}s but the file holds "
+                              f"{ref:.2f}s -- incomplete or damaged")
+            if abs(header - dur) > 0.05:
+                rec["vbr_no_header"] = round(header - dur, 2)
             sp = A.line_spans(audio, lines, device=device)
             marks = A.place_markers(sp, offset, strategy)
             probs = SY.diagnose(sp["conf"], marks)
@@ -187,6 +201,13 @@ def build(only=None):
             if ghosts:
                 fails.append("line(s) not present in the audio (collapsed to ~0s): "
                              + ", ".join(str(g) for g in ghosts))
+            # The mismatch detector is relative to the file's own median, so a
+            # file that is uniformly bad can pass it. Verified melismatic
+            # recordings sit at 0.23-0.40; below this floor nothing is trusted.
+            if float(np.median(sp["conf"])) < CONF_FLOOR:
+                fails.append(f"alignment confidence {np.median(sp['conf']):.2f} is too "
+                             f"low to trust -- the recording may defeat the model "
+                             f"(chorus, echo, backing track)")
             if any(p["mismatch"] for p in probs):
                 bad = [p for p in probs if p["mismatch"]]
                 fails.append("text/audio mismatch: " + "; ".join(
