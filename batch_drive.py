@@ -53,7 +53,7 @@ def survey():
     todo, skipped = [], []
     for folder in sorted(os.listdir(DRIVE)):
         p = os.path.join(DRIVE, folder)
-        if not os.path.isdir(p):
+        if not os.path.isdir(p) or folder == LABELS_DIR:
             continue
         files = [f for f in sorted(os.listdir(p))
                  if os.path.isfile(os.path.join(p, f)) and not f.startswith(".")]
